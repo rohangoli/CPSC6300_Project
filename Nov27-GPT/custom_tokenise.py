@@ -23,7 +23,7 @@ class BPE_token(object):
             "<unk>",
             "<mask>"
         ])
-        self.tokenizer.train(trainer, paths)
+        self.tokenizer.train(trainer=trainer, files=paths)
 
     def save_tokenizer(self, location, prefix=None):
         if not os.path.exists(location):
