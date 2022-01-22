@@ -1,0 +1,283 @@
+Tokenizers:
+============
+Word
+Character 
+Sub-word based tokenizer is hybrid of word, character tokenizers and best
+Byte Pair Encoding -> GPT2
+
+==========================
+:::: SUMMARY OF TASKS ::::
+==========================
+
+Masked Language Modelling : Predict missing word in the sentence based
+
+Causal Language Modelling : Predict Next word based on sentence on left
+=========================
+>>> from transformers import TFAutoModelForCausalLM, AutoTokenizer, tf_top_k_top_p_filtering
+>>> import tensorflow as tf
+
+>>> tokenizer = AutoTokenizer.from_pretrained("gpt2")
+>>> model = TFAutoModelForCausalLM.from_pretrained("gpt2")
+
+>>> sequence = f"Hugging Face is based in DUMBO, New York City, and"
+
+>>> inputs = tokenizer(sequence, return_tensors="tf")
+>>> input_ids = inputs["input_ids"]
+
+>>> # get logits of last hidden state
+>>> next_token_logits = model(**inputs).logits[:, -1, :]
+
+>>> # filter
+>>> filtered_next_token_logits = tf_top_k_top_p_filtering(next_token_logits, top_k=50, top_p=1.0)
+
+>>> # sample
+>>> next_token = tf.random.categorical(filtered_next_token_logits, dtype=tf.int32, num_samples=1)
+
+>>> generated = tf.concat([input_ids, next_token], axis=1)
+
+>>> resulting_string = tokenizer.decode(generated.numpy().tolist()[0])
+>>> print(resulting_string)
+Hugging Face is based in DUMBO, New York City, and ...
+
+generate() can be used to generate multiple tokens up to a specified length instead of one token at a time
+
+====================================
+:::: HUGGING FACE DOCUMENTATION ::::
+====================================
+Getting started with our git and git-lfs interface
+
+If you need to create a model repo from the command line (skip if you created a repo from the website)
+>>> pip install huggingface_hub
+
+Or use transformers-cli if you have transformers
+>>> huggingface-cli login
+						
+Log in using the same credentials as huggingface.co/join						
+
+Create a model repo from the CLI if needed	
+>>> huggingface-cli repo create model_name					
+
+Clone your model locally
+Make sure you have git-lfs installed
+(https://git-lfs.github.com)
+>>> git lfs install
+>>> git clone https://huggingface.co/username/model_name
+				
+Then add, commit and push weights, tokenizer and config save files via `.save_pretrained()` or move them here
+>>> git add .
+>>> git commit -m "commit from $USER"
+>>> git push
+					
+Your model will then be accessible through its identifier: username/model_name
+Anyone can load it from code:
+
+>>> tokenizer = AutoTokenizer.from_pretrained("username/model_name")
+>>> model = AutoModel.from_pretrained("username/model_name")
+				
+==========================
+:::: SUMMARY OF MODELS ::::
+==========================
+
+Auto Regressive Models -> used for next word prediction
+
+Decoder Architecture - Causal Lanuguage Modelling :
+====================================
+-> Standalone model
+-> Uni-directional
+-> Only access either left/right of the sentence
+-> Generate words
+-> Natural Lanuguage generation
+
+ex: GPT2, GPT-Neo, XLNet
+
+Encoder Architecture - Masked Lanuguage Modelling :
+====================================
+-> Holds Context or Meaning
+-> Self Attention Mechanism
+-> Bi-directional
+
+ex: BERT, RoBERT, ALBERT, DistilBERT
+
+Uses:
+1. Correct sentence
+2. Fill missing words
+3. sentence sentiment analysis
+
+Encode-Decoder Architecture - Sentence to Sentence Modelling :
+============================================================
+-> 2 Inputs: Context of the sentence from Encoder, Sequence of 
+-> Auto-Regressive
+-> Generates sequence of words or a sentence
+
+Flow:
+Seq, Contx >>> predict WORD1 >>> Seq + WORD1, Contx >>> predict WORD2 >>> Seq + WORD1 + WORD2, Contx >>> predict WORD3
+
+Uses:
+1. language translation
+2. Sentence prediction
+3. Text summarization
+
+ex: BART, Pegasus, MarianMT, T5, MBART, ProphNet, MT5
+
+Retrieval based models : open-domain quesiton answering
+=======================
+ex: DPR, RAG
+
+
+==========================
+:::: PRE-PROCESSING DATA ::::
+==========================
+Preprocess data -> Tokenizers
+Custome tokenizer -> AutoTokenizer Class
+
+>>> from transformers import AutoTokenizer
+#### Downloads the vocab for pretraining or fine-tuning
+>>> tokenizer = AutoTokenizer.from_pretrained('bert-base-cased') 
+
+#### Pre Trained Tokenizer
+>>> encoded_input = tokenizer("Hello, I'm a single sentence!")
+>>> print(encoded_input)
+{'input_ids': [101, 138, 18696, 155, 1942, 3190, 1144, 1572, 13745, 1104, 159, 9664, 2107, 102], 
+ 'token_type_ids': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 
+ 'attention_mask': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]}
+
+ >>> tokenizer.decode(encoded_input["input_ids"])
+"[CLS] Hello, I'm a single sentence! [SEP]"
+
+#### Disable special tokens using "add_special_tokens=False" argument to tokenzier.decode()
+
+#### Process multiple sentences
+>>> batch_sentences = ["Hello I'm a single sentence",
+...                    "And another sentence",
+...                    "And the very very last one"]
+>>> encoded_inputs = tokenizer(batch_sentences)
+>>> print(encoded_inputs)
+{'input_ids': [[101, 8667, 146, 112, 182, 170, 1423, 5650, 102],
+               [101, 1262, 1330, 5650, 102],
+               [101, 1262, 1103, 1304, 1304, 1314, 1141, 102]],
+ 'token_type_ids': [[0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0]],
+ 'attention_mask': [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+                    [1, 1, 1, 1, 1],
+                    [1, 1, 1, 1, 1, 1, 1, 1]]}
+
+For batch processing of sentences in tokenizer
+-> Pad sentence to max_length
+-> Truncate sentence to max_length
+-> return tensors
+
+>>> batch = tokenizer(batch_sentences, padding=True, truncation=True, return_tensors="tf")
+>>> print(batch)
+{'input_ids': tf.Tensor([[ 101, 8667,  146,  112,  182,  170, 1423, 5650,  102],
+                      [ 101, 1262, 1330, 5650,  102,    0,    0,    0,    0],
+                      [ 101, 1262, 1103, 1304, 1304, 1314, 1141,  102,    0]]),
+ 'token_type_ids': tf.Tensor([[0, 0, 0, 0, 0, 0, 0, 0, 0],
+                           [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                           [0, 0, 0, 0, 0, 0, 0, 0, 0]]), 
+ 'attention_mask': tf.Tensor([[1, 1, 1, 1, 1, 1, 1, 1, 1],
+                           [1, 1, 1, 1, 1, 0, 0, 0, 0],
+                           [1, 1, 1, 1, 1, 1, 1, 1, 0]])}
+
+For Quesiton Answering
+-> Feed pair of sentences to model
+-> Context & Question
+
+>>> encoded_input = tokenizer("How old are you?", "I'm 6 years old")
+>>> print(encoded_input)
+{'input_ids': [101, 1731, 1385, 1132, 1128, 136, 102, 146, 112, 182, 127, 1201, 1385, 102], 
+ 'token_type_ids': [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1], 
+ 'attention_mask': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]}
+
+#### Pre-Tokenized Inputs
+>>> encoded_input = tokenizer(["Hello", "I'm", "a", "single", "sentence"], is_split_into_words=True)
+>>> print(encoded_input)
+{'input_ids': [101, 8667, 146, 112, 182, 170, 1423, 5650, 102],
+ 'token_type_ids': [0, 0, 0, 0, 0, 0, 0, 0, 0], 
+ 'attention_mask': [1, 1, 1, 1, 1, 1, 1, 1, 1]}
+
+batch_sentences = [["Hello", "I'm", "a", "single", "sentence"],
+                   ["And", "another", "sentence"],
+                   ["And", "the", "very", "very", "last", "one"]]
+encoded_inputs = tokenizer(batch_sentences, is_split_into_words=True)
+
+====================================
+:::: FINE-TUNING A PRE-TRAINED MODEL ::::
+====================================
+https://huggingface.co/docs/transformers/training
+
+Tensorflow Keras -> fit() method
+Model -> Compile >>> Fit >>> Predict
+
+
+PyTorch -> Huggingface's Trainer() API method in transformers library
+Trainer API Inputs
+-> model
+-> tokenizer
+-> data collator
+-> test dataset
+-> validation dataset
+-> train dataset
+-> hyper parameters
+-> metrics
+
+Trainser API Outputs
+-> Training
+-> Evaluation
+-> Prediction
+
+
+====================================
+:::: MODEL SHARING & UPLOADING ::::
+====================================
+https://huggingface.co/docs/transformers/model_sharing
+
+
+TFAutoModelForCausalLM 
+=====================
+https://huggingface.co/docs/transformers/master/en/model_doc/auto#transformers.TFAutoModel
+
+## No weights from model, only config
+
+>>> from transformers import AutoConfig, TFAutoModelForCausalLM
+>>> # Download configuration from huggingface.co and cache.
+>>> config = AutoConfig.from_pretrained('bert-base-cased')
+>>> model = TFAutoModelForCausalLM.from_config(config)
+
+From pre-Trained
+    bert — TFBertLMHeadModel (BERT model)
+    ctrl — TFCTRLLMHeadModel (CTRL model)
+    gpt2 — TFGPT2LMHeadModel (OpenAI GPT-2 model)
+    openai-gpt — TFOpenAIGPTLMHeadModel (OpenAI GPT model)
+    rembert — TFRemBertForCausalLM (RemBERT model)
+    roberta — TFRobertaForCausalLM (RoBERTa model)
+    roformer — TFRoFormerForCausalLM (RoFormer model)
+    transfo-xl — TFTransfoXLLMHeadModel (Transformer-XL model)
+    xlm — TFXLMWithLMHeadModel (XLM model)
+    xlnet — TFXLNetLMHeadModel (XLNet model)
+
+>>> from transformers import AutoConfig, TFAutoModelForCausalLM
+
+>>> # Download model and configuration from huggingface.co and cache.
+>>> model = TFAutoModelForCausalLM.from_pretrained('bert-base-cased')
+
+>>> # Update configuration during loading
+>>> model = TFAutoModelForCausalLM.from_pretrained('bert-base-cased', output_attentions=True)
+>>> model.config.output_attentions
+True
+
+>>> # Loading from a PyTorch checkpoint file instead of a TensorFlow model (slower)
+>>> config = AutoConfig.from_pretrained('./pt_model/bert_pt_model_config.json')
+>>> model = TFAutoModelForCausalLM.from_pretrained('./pt_model/bert_pytorch_model.bin', from_pt=True, config=config)
+
+===================================== TFGPT2LMHeadModel 
+
+>>> from transformers import GPT2Tokenizer, TFGPT2LMHeadModel
+>>> import tensorflow as tf
+
+>>> tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+>>> model = TFGPT2LMHeadModel.from_pretrained('gpt2')
+
+>>> inputs = tokenizer("Hello, my dog is cute", return_tensors="tf")
+>>> outputs = model(inputs)
+>>> logits = outputs.logits
